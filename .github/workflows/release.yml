@@ -1,6 +1,8 @@
 name: Github Release
 on:
+ workflow_dispatch: # 添加这行以启用手动触发
   push:
+    branches: ["master"] # 确认这里是 master
     # Uncomment to test against a branch
     #branches:
     #  - ci
