@@ -50,7 +50,7 @@ const HDR_V4_SIGNATURE_SIZE: u64 = 4096;
 /// Maximum size of any individual boot image component, like the kernel. This
 /// limit is currently 64 MiB, which should be sufficient since there is no
 /// known device where the entire boot image exceeds this size.
-const COMPONENT_MAX_SIZE: u32 = 64 * 1024 * 1024;
+const COMPONENT_MAX_SIZE: u32 = 256 * 1024 * 1024;
 /// Maximum size of the bootconfig component in vendor v4 images. This limit is
 /// currently 1 KiB, which is ~25x the size of the Pixel 7 Pro stock image's
 /// bootconfig.
