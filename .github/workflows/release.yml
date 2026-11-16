@@ -1,23 +1,110 @@
-name: Release
+name: release
 
 on:
   push:
-    tags: ['v*']
-  workflow_dispatch:
+    tags:
+      - "v*"
+      - "*"
 
 permissions:
   contents: write
 
 jobs:
   build:
-    strategy:
-      matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+    name: Build ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            name: linux-x86_64
+            target: x86_64-unknown-linux-gnu
+            binary: avbroot
+            archive: avbroot-linux-x86_64.tar.gz
+
+          - os: ubuntu-latest
+            name: linux-aarch64
+            target: aarch64-unknown-linux-gnu
+            binary: avbroot
+            archive: avbroot-linux-aarch64.tar.gz
+
+          - os: macos-latest
+            name: macos-x86_64
+            target: x86_64-apple-darwin
+            binary: avbroot
+            archive: avbroot-macos-x86_64.tar.gz
+
+          - os: macos-latest
+            name: macos-aarch64
+            target: aarch64-apple-darwin
+            binary: avbroot
+            archive: avbroot-macos-aarch64.tar.gz
+
+          - os: windows-latest
+            name: windows-x86_64
+            target: x86_64-pc-windows-msvc
+            binary: avbroot.exe
+            archive: avbroot-windows-x86_64.zip
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-      - run: cargo build --release
-      - uses: softprops/action-gh-release@v1
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
         with:
-          files: target/release/avbroot*
+          targets: ${{ matrix.target }}
+
+      - name: Install cross compiler for Linux ARM64
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+
+      - name: Build release binary
+        shell: bash
+        env:
+          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
+        run: |
+          cargo build --release --locked --target ${{ matrix.target }}
+
+      - name: Package binary
+        shell: bash
+        run: |
+          mkdir -p dist
+
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            cp "target/${{ matrix.target }}/release/${{ matrix.binary }}" "dist/${{ matrix.binary }}"
+            powershell -NoProfile -Command "Compress-Archive -Path 'dist/${{ matrix.binary }}' -DestinationPath '${{ matrix.archive }}' -Force"
+          else
+            cp "target/${{ matrix.target }}/release/${{ matrix.binary }}" "dist/${{ matrix.binary }}"
+            tar -czf "${{ matrix.archive }}" -C dist "${{ matrix.binary }}"
+          fi
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }}
+          path: ${{ matrix.archive }}
+
+  release:
+    name: Publish GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            release-assets/**/*.tar.gz
+            release-assets/**/*.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
