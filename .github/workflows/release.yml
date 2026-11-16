@@ -1,37 +1,23 @@
-name: Github Release
+name: Release
+
 on:
- workflow_dispatch: # 添加这行以启用手动触发
   push:
-    branches: ["master"] # 确认这里是 master
-    # Uncomment to test against a branch
-    #branches:
-    #  - ci
-    tags:
-      - 'v*'
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
 jobs:
-  create_release:
-    name: Create Github release
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
+  build:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
     steps:
-      - name: Get version from tag
-        id: get_version
-        run: |
-          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
-              version=${GITHUB_REF#refs/tags/v}
-          else
-              version=0.0.0.${GITHUB_REF#refs/heads/}
-          fi
-          echo "version=${version}" >> "${GITHUB_OUTPUT}"
-
-      - name: Check out repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Create release
-        uses: softprops/action-gh-release@8a0cd651e5b2365bd640854a3fa5dfc70e4875f3 # v3.0.4
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo build --release
+      - uses: softprops/action-gh-release@v1
         with:
-          tag_name: v${{ steps.get_version.outputs.version }}
-          name: Version ${{ steps.get_version.outputs.version }}
-          body_path: RELEASE.md
-          draft: true
+          files: target/release/avbroot*
